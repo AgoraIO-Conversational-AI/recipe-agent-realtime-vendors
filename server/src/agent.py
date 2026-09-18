@@ -5,7 +5,7 @@ High-level API for managing Agora Conversational AI Agents using a single
 realtime MLLM, selected from a data-driven vendor registry. The MLLM replaces
 the cascading STT->LLM->TTS and is attached via .with_mllm():
 
-  build_vendor(REALTIME_VENDOR)  ->  voice-to-voice MLLM (server_vad)
+  build_vendor(REALTIME_VENDOR)  ->  voice-to-voice MLLM
 
 This recipe is BYO-only: every realtime vendor requires its own API key (the
 default `openai` needs OPENAI_API_KEY). The selected vendor's credentials are
@@ -26,7 +26,7 @@ class Agent:
     """
     High-level wrapper for an Agora Conversational AI Agent using a realtime MLLM.
 
-    The MLLM (voice-to-voice, server_vad) is built from the vendor registry in
+    The voice-to-voice MLLM is built from the vendor registry in
     vendors.py and attached via .with_mllm(). No separate STT, LLM, or TTS vendors
     are used. This recipe is BYO-only — the selected vendor's API key is required
     and is validated at start() time.

@@ -40,7 +40,8 @@
 - Backend service:
   - Python FastAPI owns token generation and agent lifecycle through `agora-agents`
 - Third-party services: selected BYO realtime MLLM through Agora Conversational
-  AI (OpenAI Realtime, Azure OpenAI Realtime, Gemini Live, xAI, or Vertex AI)
+  AI (OpenAI Realtime, OpenAI GPT Live, Azure OpenAI Realtime, Gemini Live, xAI,
+  or Vertex AI)
 
 ## 5. Module Responsibilities & Directory Structure
 

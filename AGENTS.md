@@ -11,7 +11,7 @@ attached with `.with_mllm()` only.
 - **`server/`** — Python FastAPI agent backend (:8000). Owns Agora token
   generation and agent session lifecycle. The realtime MLLM leg is built from the
   per-vendor builder registry in `server/src/vendors.py` and attached via `.with_mllm()`
-  — it replaces the STT/LLM/TTS cascade. SDK: `agora-agents>=2.6.0`
+  — it replaces the STT/LLM/TTS cascade. SDK target: `agora-agents>=2.10.0`.
   (`import agora_agent`).
 - **`web/`** — Next.js 16 / React 19 / TypeScript frontend (:3000).
 - Auth: Token007 from `AGORA_APP_ID` + `AGORA_APP_CERTIFICATE`.
@@ -21,13 +21,13 @@ attached with `.with_mllm()` only.
 ## Pipeline
 
 `<REALTIME_VENDOR>` MLLM via `.with_mllm()` (default `openai`) — voice-to-voice,
-no separate STT/LLM/TTS. Turn detection is MLLM-owned (`server_vad`). No tools
-(the realtime MLLM vendors are tool-less).
+no separate STT/LLM/TTS. Endpointing is MLLM-owned. This recipe does not
+configure tools; REST tools and MCP are covered by their dedicated recipes.
 
 ## Vendor registry
 
 - `server/src/vendors.py` holds `CATEGORY = "REALTIME"`, one readable
-  `build_<vendor>(env)` function per vendor (`openai`, `azure`, `gemini`,
+  `build_<vendor>(env)` function per vendor (`openai`, `openai_gpt_live`, `azure`, `gemini`,
   `xai`, `vertexai`), a `REGISTRY: {name: (builder,
   [required_env])}`, and `build_vendor()` / `required_env()` / `needs_key()` /
   `available()`.
@@ -37,7 +37,8 @@ no separate STT/LLM/TTS. Turn detection is MLLM-owned (`server_vad`). No tools
   `REALTIME_VENDOR`. BYO credential validation happens there, so `/get_config`
   stays key-less.
 - The MLLM is attached with `.with_mllm()` only; never `.with_stt/.with_llm/.with_tts`.
-- Each builder sets `turn_detection={"mode": "server_vad"}` (MLLM-owned).
+- Most builders set `turn_detection={"mode": "server_vad"}`; GPT Live handles
+  endpointing internally.
 
 ## Routing / ownership
 
@@ -62,7 +63,8 @@ no separate STT/LLM/TTS. Turn detection is MLLM-owned (`server_vad`). No tools
 | `AGORA_APP_ID` | — | required |
 | `AGORA_APP_CERTIFICATE` | — | required |
 | `REALTIME_VENDOR` | `openai` | which realtime MLLM vendor to build (see README Vendors table) |
-| `REALTIME_MODEL` | per-vendor | optional model override where supported; Azure uses its required deployment setting |
+| `OPENAI_REALTIME_MODEL` / `OPENAI_GPT_LIVE_MODEL` / `GEMINI_LIVE_MODEL` / `VERTEXAI_REALTIME_MODEL` | per-vendor | optional model override for the matching vendor |
+| `GEMINI_THINKING_LEVEL` | — | optional level for the Gemini 3.8 Extended Thinking model |
 | _vendor creds_ | — | **required** for the selected vendor (BYO-only); `required_env(selected vendor)` |
 | `AZURE_OPENAI_API_KEY` / `URL` / `MODEL` | — | required for the Azure vendor |
 | `AGENT_GREETING` | built-in | Optional opening line override |
@@ -77,7 +79,7 @@ no separate STT/LLM/TTS. Turn detection is MLLM-owned (`server_vad`). No tools
   function + its `REGISTRY` line in `vendors.py`; the framework
   (`build_vendor`/`required_env`/`needs_key`/`available`) is shared across the
   sibling vendor recipes — keep it identical.
-- `turn_detection` is MLLM-owned (`server_vad`); do not set a top-level
+- Endpointing is MLLM-owned; do not set a top-level
   `turn_detection` on `AgoraAgent(...)` when using `.with_mllm()`.
 
 ## Anti-patterns
@@ -91,7 +93,7 @@ no separate STT/LLM/TTS. Turn detection is MLLM-owned (`server_vad`). No tools
 - Do not put `PORT` in `server/.env.example` (it would clobber the random port
   that `verify:local:fastapi` injects via `load_dotenv(override=True)`).
 - Do not link to `docs/ai/` — that progressive-disclosure tree is not present yet.
-- Do not add tools — the realtime MLLM vendors have no tool support.
+- Do not add tools here; REST tools and MCP belong in their dedicated recipes.
 
 ## Commands
 

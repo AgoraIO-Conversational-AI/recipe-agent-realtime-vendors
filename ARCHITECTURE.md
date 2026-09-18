@@ -21,7 +21,7 @@ Agent backend (server/, :8000)
   │  attaches it with .with_mllm() (replaces the cascade)
   ▼
 Agora ConvoAI Cloud
-  │  user speech → <REALTIME_VENDOR> (voice-to-voice, server_vad)
+  │  user speech → <REALTIME_VENDOR> (voice-to-voice)
   │  agent speech → user's channel
   ▼
 User hears realtime voice response; RTM transcript + metrics → web UI
@@ -44,15 +44,16 @@ Trade-off: this recipe is **BYO-only** — every vendor (including the default
 ## Vendor registry
 
 `server/src/vendors.py` is a **data-driven switchboard** over OpenAI Realtime,
-Azure OpenAI Realtime, Gemini Live, xAI Grok, and Vertex AI. It holds
+OpenAI GPT Live, Azure OpenAI Realtime, Gemini Live, xAI Grok, and Vertex AI. It holds
 `CATEGORY = "REALTIME"`, the registry, and `build_vendor()` / `required_env()` /
 `available()`:
 
 | Vendor | `REALTIME_VENDOR` | Required env | Default model |
 | --- | --- | --- | --- |
-| OpenAI Realtime | `openai` | `OPENAI_API_KEY` | `gpt-4o-realtime-preview` |
+| OpenAI Realtime | `openai` | `OPENAI_API_KEY` | `gpt-realtime` |
+| OpenAI GPT Live | `openai_gpt_live` | `OPENAI_API_KEY` | `gpt-live-1` |
 | Azure OpenAI Realtime | `azure` | `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_REALTIME_URL`, `AZURE_OPENAI_REALTIME_MODEL` | Azure deployment |
-| Gemini Live | `gemini` | `GEMINI_API_KEY` | `gemini-2.0-flash-live-001` |
+| Gemini Live | `gemini` | `GEMINI_API_KEY` | `models/gemini-3.8-live` |
 | xAI Grok | `xai` | `XAI_API_KEY` | _(SDK default)_ |
 | Vertex AI | `vertexai` | `GOOGLE_APPLICATION_CREDENTIALS_JSON`, `GOOGLE_PROJECT_ID`, `GOOGLE_LOCATION` | `gemini-2.0-flash-live-001` |
 
@@ -61,11 +62,13 @@ Azure OpenAI Realtime, Gemini Live, xAI Grok, and Vertex AI. It holds
   the UI/request `vendor` when provided, otherwise `REALTIME_VENDOR` — BYO
   credential validation happens there, so `/get_config` and the managed docker
   smoke stay key-less.
-- Each spec default sets `turn_detection={"mode": "server_vad"}` — vendor-side
-  VAD; the top-level cascading `turn_detection` on `AgoraAgent(...)` is not set.
+- Most builders set `turn_detection={"mode": "server_vad"}`. GPT Live handles
+  endpointing internally. The top-level cascading `turn_detection` on
+  `AgoraAgent(...)` is not set.
 - The MLLM is attached with `.with_mllm()` only; no cascading STT/LLM/TTS legs.
 
-No tools — the realtime MLLM vendors have no tool support in this SDK.
+This recipe intentionally does not configure tools; REST tools and MCP are
+demonstrated by their dedicated recipes.
 
 ## API (agent backend, port 8000)
 

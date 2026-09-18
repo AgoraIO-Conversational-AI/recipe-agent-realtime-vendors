@@ -5,6 +5,7 @@ import vendors as R  # noqa: E402
 # vendors whose to_config() emits a "vendor" key, and the expected value
 EXPECTED_VENDOR = {
     "openai": "openai",
+    "openai_gpt_live": "openai_gpt_live",
     "azure": "azure",
     "gemini": "gemini",
     "xai": "xai",
@@ -55,3 +56,51 @@ def test_azure_openai_realtime_uses_the_required_deployment_settings():
     }
     assert config["output_modalities"] == ["audio"]
     assert config["max_history"] == 20
+
+
+def test_openai_realtime_uses_production_model_by_default():
+    config = R.build_vendor("openai", {"OPENAI_API_KEY": "openai-key"}).to_config()
+    assert config["params"]["model"] == "gpt-realtime"
+
+
+def test_openai_gpt_live_uses_production_vendor_and_model():
+    config = R.build_vendor(
+        "openai_gpt_live", {"OPENAI_API_KEY": "openai-key"}
+    ).to_config()
+    assert config["vendor"] == "openai_gpt_live"
+    assert config["url"] == "wss://api.openai.com/v1/live/sessions"
+    assert config["params"]["model"] == "gpt-live-1"
+    assert "turn_detection" not in config
+
+
+def test_openai_model_override_does_not_leak_to_other_vendors():
+    shared_env = {
+        "OPENAI_API_KEY": "openai-key",
+        "GEMINI_API_KEY": "gemini-key",
+        "OPENAI_REALTIME_MODEL": "gpt-realtime",
+    }
+    gpt_live = R.build_vendor("openai_gpt_live", shared_env).to_config()
+    gemini = R.build_vendor("gemini", shared_env).to_config()
+
+    assert gpt_live["params"]["model"] == "gpt-live-1"
+    assert gemini["params"]["model"] == R.GeminiLiveModels.LIVE_38
+
+
+def test_gemini_live_uses_38_model_by_default():
+    config = R.build_vendor("gemini", {"GEMINI_API_KEY": "gemini-key"}).to_config()
+    assert config["vendor"] == "gemini"
+    assert config["params"]["model"] == R.GeminiLiveModels.LIVE_38
+    assert config["url"] == "https://generativelanguage.googleapis.com"
+
+
+def test_gemini_extended_thinking_options_are_forwarded():
+    config = R.build_vendor(
+        "gemini",
+        {
+            "GEMINI_API_KEY": "gemini-key",
+            "GEMINI_LIVE_MODEL": R.GeminiLiveModels.LIVE_38_EXTENDED_THINKING,
+            "GEMINI_THINKING_LEVEL": "high",
+        },
+    ).to_config()
+    assert config["params"]["model"] == R.GeminiLiveModels.LIVE_38_EXTENDED_THINKING
+    assert config["params"]["thinking_level"] == "high"
