@@ -15,7 +15,7 @@ credentials, including the default `openai` (which needs `OPENAI_API_KEY`). The 
 credentials are validated **when the agent starts** (not at construction), so
 `/get_config` always works key-less.
 
-**Pipeline:** **`<REALTIME_VENDOR>`** MLLM via `.with_mllm()` (default `openai`, server_vad turn detection)
+**Pipeline:** **`<REALTIME_VENDOR>`** MLLM via `.with_mllm()` (default `openai`, vendor-owned endpointing)
 
 ## Vendors
 
@@ -25,15 +25,21 @@ Two ways to pick a vendor:
   still requires its env vars set on the server; if they're missing, startup
   reports exactly which.)
 - **By env** — set `REALTIME_VENDOR` (the default for the dropdown) + the vendor's
-  credentials in `server/.env.local`; use `REALTIME_MODEL` where supported. Azure uses
-  its required `AZURE_OPENAI_REALTIME_MODEL` deployment setting.
-  Turn detection (`server_vad`) is owned by the MLLM.
+  credentials in `server/.env.local`; use the matching vendor-specific model
+  variable when an override is needed. Azure uses its required
+  `AZURE_OPENAI_REALTIME_MODEL` deployment setting.
+  Endpointing is owned by the MLLM. Most vendors use `server_vad`; GPT Live
+  handles endpointing internally.
+
+If you previously set `REALTIME_MODEL`, move its value to the matching
+vendor-specific model variable listed below. `REALTIME_MODEL` is no longer read.
 
 | Vendor | `REALTIME_VENDOR` | Required env | Default model |
 | --- | --- | --- | --- |
-| OpenAI Realtime | `openai` | `OPENAI_API_KEY` | `gpt-4o-realtime-preview` |
+| OpenAI Realtime | `openai` | `OPENAI_API_KEY` | `gpt-realtime` |
+| OpenAI GPT Live | `openai_gpt_live` | `OPENAI_API_KEY` | `gpt-live-1` |
 | Azure OpenAI Realtime | `azure` | `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_REALTIME_URL`, `AZURE_OPENAI_REALTIME_MODEL` | Azure deployment |
-| Gemini Live | `gemini` | `GEMINI_API_KEY` | `gemini-2.0-flash-live-001` |
+| Gemini Live | `gemini` | `GEMINI_API_KEY` | `models/gemini-3.8-live` |
 | xAI Grok | `xai` | `XAI_API_KEY` | _(SDK default)_ |
 | Vertex AI | `vertexai` | `GOOGLE_APPLICATION_CREDENTIALS_JSON`, `GOOGLE_PROJECT_ID`, `GOOGLE_LOCATION` | `gemini-2.0-flash-live-001` |
 
@@ -44,19 +50,31 @@ validated **when the agent starts**, so `/get_config` works key-less.
 ### Sample code — how each vendor is wired
 
 Every vendor is a small, copy-pasteable builder in [`server/src/vendors.py`](server/src/vendors.py)
-that shows the real SDK constructor and the `server_vad` turn detection the MLLM
-owns. For example:
+that shows the real SDK constructor and vendor-owned endpointing. For example:
 
 ```python
-from agora_agent.agentkit.vendors import AzureOpenAIRealtime, OpenAIRealtime, GeminiLive, XaiGrok
+from agora_agent.agentkit.vendors import (
+    AzureOpenAIRealtime,
+    GeminiLive,
+    GeminiLiveModels,
+    OpenAIGPTLive,
+    OpenAIRealtime,
+    XaiGrok,
+)
 
 TURN_DETECTION = {"mode": "server_vad"}
 
 # OpenAI Realtime — set OPENAI_API_KEY:
 OpenAIRealtime(
     api_key=env["OPENAI_API_KEY"],
-    model="gpt-4o-realtime-preview",
+    model="gpt-realtime",
     turn_detection=TURN_DETECTION,
+)
+
+# OpenAI GPT Live — reuses OPENAI_API_KEY and handles endpointing internally:
+OpenAIGPTLive(
+    api_key=env["OPENAI_API_KEY"],
+    model="gpt-live-1",
 )
 
 # Azure OpenAI Realtime — set API key, complete WebSocket URL, and deployment:
@@ -70,7 +88,7 @@ AzureOpenAIRealtime(
 # Gemini Live — set GEMINI_API_KEY:
 GeminiLive(
     api_key=env["GEMINI_API_KEY"],
-    model="gemini-2.0-flash-live-001",
+    model=GeminiLiveModels.LIVE_38,
     turn_detection=TURN_DETECTION,
 )
 
@@ -111,7 +129,7 @@ agora project env write server/.env.local # writes App ID + Certificate
 # 3. Pick a realtime vendor + add its credentials to server/.env.local (BYO-only)
 #    REALTIME_VENDOR=openai            (default — see the Vendors table)
 #    OPENAI_API_KEY=sk-...             (required for the openai vendor)
-#    REALTIME_MODEL=gpt-4o-realtime-preview  (optional model override)
+#    OPENAI_REALTIME_MODEL=gpt-realtime  (optional OpenAI model override)
 #    # For azure, set the three AZURE_OPENAI_REALTIME_* values in server/.env.local.
 
 # 4. Run backend + web
@@ -157,7 +175,8 @@ Backend env file: [`server/.env.example`](server/.env.example).
 | `AGORA_APP_ID` | ✅ | — | Agora Console → Project → App ID |
 | `AGORA_APP_CERTIFICATE` | ✅ | — | Agora Console → Project → App Certificate |
 | `REALTIME_VENDOR` | | `openai` | Which realtime MLLM vendor to build (see [Vendors](#vendors)) |
-| `REALTIME_MODEL` | | per-vendor | Optional model override where supported; Azure uses `AZURE_OPENAI_REALTIME_MODEL` |
+| `OPENAI_REALTIME_MODEL` / `OPENAI_GPT_LIVE_MODEL` / `GEMINI_LIVE_MODEL` / `VERTEXAI_REALTIME_MODEL` | | per-vendor | Optional model override for the matching vendor |
+| `GEMINI_THINKING_LEVEL` | | — | Optional `low`, `medium`, or `high` for `models/gemini-3.8-live-extended-thinking` |
 | _vendor creds_ | ✅ | — | Required for the selected vendor (BYO-only); validated at agent start |
 | `AZURE_OPENAI_API_KEY` / `AZURE_OPENAI_REALTIME_URL` / `AZURE_OPENAI_REALTIME_MODEL` | Azure only | — | Azure key, complete Realtime WebSocket URL, and deployment/model name |
 | `AGENT_GREETING` | | built-in | Optional opening line override |
@@ -204,13 +223,13 @@ service. See [ARCHITECTURE.md](./ARCHITECTURE.md).
 ## What You Get
 
 - A **vendor switchboard** for the realtime MLLM leg: one readable `build_<vendor>`
-  builder per vendor plus a `REGISTRY`, covering OpenAI Realtime, Azure OpenAI
-  Realtime, Gemini Live, xAI Grok, and Vertex AI,
+  builder per vendor plus a `REGISTRY`, covering OpenAI Realtime, OpenAI GPT
+  Live, Azure OpenAI Realtime, Gemini Live, xAI Grok, and Vertex AI,
   selected via `REALTIME_VENDOR` or the in-UI dropdown.
 - A **Next.js** web client (:3000) that drives the RTC/RTM lifecycle and only ever calls `/api/*`.
 - A **FastAPI** agent backend (:8000) that owns Agora token generation and the agent session lifecycle.
 - **Realtime MLLM** attached via `.with_mllm()` — replaces the cascading STT→LLM→TTS with a single voice-to-voice model.
-- **Server-side VAD** (`server_vad`) turn detection — owned by the MLLM, no top-level cascading VAD config needed.
+- **Vendor-owned endpointing** — most vendors use `server_vad`; GPT Live handles endpointing internally.
 - **BYO credentials** — every vendor (including the default `openai`) requires provider credentials; validated at agent start.
 
 ## How It Works
@@ -244,6 +263,7 @@ service. See [ARCHITECTURE.md](./ARCHITECTURE.md).
 | `REALTIME vendor '<x>' requires environment variable(s): ...` at start | Set the listed env vars for that `REALTIME_VENDOR` (see [Vendors](#vendors)). |
 | `/startAgent` returns 400 | Check the selected vendor's credentials are set and have realtime API access. |
 | Agent starts but no audio | Ensure the selected model or Azure deployment supports realtime voice. |
+| GPT Live returns `model_not_found` | Confirm that the OpenAI project has access to `gpt-live-1`. |
 | Local calls fail under a global proxy (Clash, etc.) | Configure your proxy to send `127.0.0.1`, `localhost`, and RFC-1918 ranges DIRECT. |
 
 ## More Docs

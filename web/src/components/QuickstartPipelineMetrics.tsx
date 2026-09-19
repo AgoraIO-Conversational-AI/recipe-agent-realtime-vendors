@@ -14,6 +14,7 @@ type QuickstartPipelineMetricsProps = {
 
 const VENDOR_LABELS: Record<string, string> = {
 	openai: "OpenAI Realtime MLLM",
+	openai_gpt_live: "OpenAI GPT Live MLLM",
 	azure: "Azure OpenAI Realtime MLLM",
 	gemini: "Gemini Live MLLM",
 	xai: "xAI Grok MLLM",

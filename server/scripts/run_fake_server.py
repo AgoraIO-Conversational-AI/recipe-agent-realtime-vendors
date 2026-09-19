@@ -1,6 +1,7 @@
 import os
 import sys
 
+import dotenv
 import uvicorn
 
 
@@ -39,6 +40,9 @@ def main():
     if src_root not in sys.path:
         sys.path.insert(0, src_root)
 
+    # Smoke tests inject deterministic credentials through the process env.
+    # Ignore local files, including placeholders copied by a fresh setup.
+    dotenv.load_dotenv = lambda *args, **kwargs: False
     import server as server_module
 
     server_module.agent = FakeAgent()

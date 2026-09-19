@@ -3,9 +3,10 @@ realtime (voice-to-voice) vendor.
 
 Each `build_<vendor>(env)` is a self-contained, copy-pasteable example of wiring
 that vendor into an Agora Conversational AI agent as a single realtime MLLM: it
-shows the real SDK constructor call, the `server_vad` turn detection it owns, and
-exactly which env vars it needs. `build_vendor(name)` selects one by
-`REALTIME_VENDOR`. Optional `REALTIME_MODEL` overrides the model.
+shows the real SDK constructor call, the vendor-owned endpointing configuration,
+and exactly which env vars it needs. `build_vendor(name)` selects one by
+`REALTIME_VENDOR`. Each vendor has its own optional model override so switching
+vendors in the UI cannot leak one provider's model name into another provider.
 
 This recipe is BYO-only: every vendor (including the default `openai`) requires
 its own credentials, so every builder reads at least one required env var.
@@ -16,7 +17,13 @@ import os
 from typing import Callable, Dict, List, Optional, Tuple
 
 from agora_agent.agentkit.vendors import (
-    AzureOpenAIRealtime, OpenAIRealtime, GeminiLive, XaiGrok, VertexAI,
+    AzureOpenAIRealtime,
+    GeminiLive,
+    GeminiLiveModels,
+    OpenAIGPTLive,
+    OpenAIRealtime,
+    VertexAI,
+    XaiGrok,
 )
 
 CATEGORY = "REALTIME"
@@ -25,9 +32,9 @@ CATEGORY = "REALTIME"
 TURN_DETECTION = {"mode": "server_vad"}
 
 
-def _model(env, default: str) -> str:
-    """The selected model, overridable with REALTIME_MODEL."""
-    return env.get("REALTIME_MODEL") or default
+def _model(env, variable: str, default: str) -> str:
+    """Return a vendor-specific model override or that vendor's default."""
+    return env.get(variable) or default
 
 
 # --- one builder per vendor (these are the samples) -------------------------
@@ -36,8 +43,16 @@ def build_openai(env):
     """OpenAI Realtime — set OPENAI_API_KEY (platform.openai.com)."""
     return OpenAIRealtime(
         api_key=env["OPENAI_API_KEY"],
-        model=_model(env, "gpt-4o-realtime-preview"),
+        model=_model(env, "OPENAI_REALTIME_MODEL", "gpt-realtime"),
         turn_detection=TURN_DETECTION,
+    )
+
+
+def build_openai_gpt_live(env):
+    """OpenAI GPT Live — set OPENAI_API_KEY (platform.openai.com)."""
+    return OpenAIGPTLive(
+        api_key=env["OPENAI_API_KEY"],
+        model=_model(env, "OPENAI_GPT_LIVE_MODEL", "gpt-live-1"),
     )
 
 
@@ -59,7 +74,8 @@ def build_gemini(env):
     """Google Gemini Live — set GEMINI_API_KEY (aistudio.google.com)."""
     return GeminiLive(
         api_key=env["GEMINI_API_KEY"],
-        model=_model(env, "gemini-2.0-flash-live-001"),
+        model=_model(env, "GEMINI_LIVE_MODEL", GeminiLiveModels.LIVE_38),
+        thinking_level=env.get("GEMINI_THINKING_LEVEL"),
         turn_detection=TURN_DETECTION,
     )
 
@@ -79,7 +95,7 @@ def build_vertexai(env):
         adc_credentials_string=env["GOOGLE_APPLICATION_CREDENTIALS_JSON"],
         project_id=env["GOOGLE_PROJECT_ID"],
         location=env["GOOGLE_LOCATION"],
-        model=_model(env, "gemini-2.0-flash-live-001"),
+        model=_model(env, "VERTEXAI_REALTIME_MODEL", "gemini-2.0-flash-live-001"),
         turn_detection=TURN_DETECTION,
     )
 
@@ -87,11 +103,12 @@ def build_vertexai(env):
 # --- registry: name -> (builder, required env vars) -------------------------
 # BYO-only: every vendor requires at least one env var (no key-less default).
 REGISTRY: Dict[str, Tuple[Callable, List[str]]] = {
-    "openai":   (build_openai,   ["OPENAI_API_KEY"]),
-    "azure":    (build_azure,    ["AZURE_OPENAI_API_KEY", "AZURE_OPENAI_REALTIME_URL", "AZURE_OPENAI_REALTIME_MODEL"]),
-    "gemini":   (build_gemini,   ["GEMINI_API_KEY"]),
-    "xai":      (build_xai,      ["XAI_API_KEY"]),
-    "vertexai": (build_vertexai, ["GOOGLE_APPLICATION_CREDENTIALS_JSON", "GOOGLE_PROJECT_ID", "GOOGLE_LOCATION"]),
+    "openai":          (build_openai,          ["OPENAI_API_KEY"]),
+    "openai_gpt_live": (build_openai_gpt_live, ["OPENAI_API_KEY"]),
+    "azure":           (build_azure,           ["AZURE_OPENAI_API_KEY", "AZURE_OPENAI_REALTIME_URL", "AZURE_OPENAI_REALTIME_MODEL"]),
+    "gemini":          (build_gemini,          ["GEMINI_API_KEY"]),
+    "xai":             (build_xai,             ["XAI_API_KEY"]),
+    "vertexai":        (build_vertexai,        ["GOOGLE_APPLICATION_CREDENTIALS_JSON", "GOOGLE_PROJECT_ID", "GOOGLE_LOCATION"]),
 }
 
 
