@@ -67,6 +67,9 @@ def build_azure(env):
         output_modalities=["audio"],
         max_history=20,
         turn_detection=TURN_DETECTION,
+        # OpenAI/Azure Realtime only emits user (input) audio transcripts when a
+        # transcription model is set; without this the UI shows agent captions only.
+        input_audio_transcription={"model": "whisper-1"},
     )
 
 

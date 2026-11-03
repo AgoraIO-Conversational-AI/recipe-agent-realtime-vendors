@@ -53,9 +53,22 @@ def test_azure_openai_realtime_uses_the_required_deployment_settings():
         "model": "gpt-realtime-2",
         "voice": "alloy",
         "instructions": "You are a Conversational AI Agent, developed by Agora.",
+        "input_audio_transcription": {"model": "whisper-1"},
     }
     assert config["output_modalities"] == ["audio"]
     assert config["max_history"] == 20
+
+
+def test_azure_openai_realtime_enables_user_input_transcription():
+    config = R.build_vendor(
+        "azure",
+        {
+            "AZURE_OPENAI_API_KEY": "azure-key",
+            "AZURE_OPENAI_REALTIME_URL": "wss://example.openai.azure.com/openai/realtime",
+            "AZURE_OPENAI_REALTIME_MODEL": "gpt-realtime-2",
+        },
+    ).to_config()
+    assert config["params"]["input_audio_transcription"] == {"model": "whisper-1"}
 
 
 def test_openai_realtime_uses_production_model_by_default():
